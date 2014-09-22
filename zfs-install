@@ -5,11 +5,11 @@
 #
 
 # Create pool
-zpool create -f -o ashift=12 -o cachefile=/tmp/zpool.cache -O normalization=formD -m none -R /mnt/gentoo rpool /dev/sda
+zpool create -f -o ashift=12 -o cachefile=/tmp/zpool.cache -O normalization=formD -m none -R /mnt/gentoo rpool UUID_GOES_HERE
 
 # Create rootfs
-zfs create -o mountpoint=none rpool/ROOT
-zfs create -o mountpoint=/ rpool/ROOT/gentoo
+zfs set compression=lz4 rpool
+zfs create -o mountpoint=/ rpool/OS
 
 # Create home directories
 zfs create -o mountpoint=/home rpool/HOME
@@ -18,16 +18,12 @@ zfs create -o mountpoint=/root rpool/HOME/root
 # Create portage directories
 zfs create -o mountpoint=none -o setuid=off rpool/GENTOO
 zfs create -o mountpoint=/usr/portage -o atime=off rpool/GENTOO/portage
-zfs create -o mountpoint=/usr/portage/distfiles rpool/GENTOO/distfiles
+zfs create -o mountpoint=/usr/portage/distfiles -o compression=off rpool/GENTOO/distfiles
+zfs create -o mountpoint=/usr/portage/packages -o compression=off rpool/GENTOO/packages
 
-# Create portage build directory
-zfs create -o mountpoint=/var/tmp/portage -o compression=lz4 -o sync=disabled rpool/GENTOO/build-dir
-
-# Create optional packages directory
-zfs create -o mountpoint=/usr/portage/packages rpool/GENTOO/packages
-
-# Create optional ccache directory
-zfs create -o mountpoint=/var/tmp/ccache -o compression=lz4 rpool/GENTOO/ccache
+# Create build directories
+zfs create -o mountpoint=/var/tmp/portage -o sync=disabled rpool/GENTOO/build-dir
+zfs create -o mountpoint=/usr/src -o sync=disabled rpool/OS/usr-src
 
 # Set bootfs
 zpool set bootfs=rpool/ROOT/gentoo rpool
@@ -61,16 +57,16 @@ env GENTOO_MIRRORS="http://gentoo.osuosl.org" emerge-webrsync
 emerge sys-kernel/genkernel
 
 # Install sources
-emerge sys-kernel/gentoo-sources
+emerge sys-kernel/hardened-sources
 
 # Build initial kernel (required for checks in sys-kernel/spl and sys-fs/zfs)
 # FIXME: Make genkernel support modules_prepare
 genkernel kernel --no-clean --no-mountboot
 
 # Install ZFS
-echo "sys-kernel/spl ~amd64" >> /etc/portage/package.accept_keywords
-echo "sys-fs/zfs-kmod ~amd64" >> /etc/portage/package.accept_keywords
-echo "sys-fs/zfs ~amd64" >> /etc/portage/package.accept_keywords
+echo "sys-kernel/spl **" >> /etc/portage/package.accept_keywords
+echo "sys-fs/zfs-kmod **" >> /etc/portage/package.accept_keywords
+echo "sys-fs/zfs **" >> /etc/portage/package.accept_keywords
 emerge sys-fs/zfs
 
 # Add zfs to boot runlevel
